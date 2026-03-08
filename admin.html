@@ -22,9 +22,10 @@ h2 { text-shadow:0 0 6px #00ff00; margin-top:40px; margin-bottom:12px; }
 .tab { padding:8px 20px; border-radius:8px; cursor:pointer; border:1px solid #00ff0055; transition:0.2s; }
 .tab.active { background:#001a00; box-shadow:0 0 10px #00ff00; }
 
-/* SEARCH BAR */
-.search-bar { display:flex; justify-content:center; margin-bottom:20px; }
-.search-bar input { padding:8px 12px; width:300px; border-radius:6px; border:none; background:#001000; color:#00ff00; }
+/* SEARCH & FILTER */
+.search-bar { display:flex; justify-content:center; gap:10px; margin-bottom:20px; flex-wrap:wrap; }
+.search-bar input, .search-bar select { padding:8px 12px; width:200px; border-radius:6px; border:none; background:#001000; color:#00ff00; }
+.search-bar label { font-size:14px; margin-left:6px; }
 
 /* ANALYTICS */
 .analytics { text-align:center; margin-bottom:12px; font-size:16px; }
@@ -52,6 +53,10 @@ button:hover { filter:brightness(1.2); transform:scale(1.05); }
 
 /* POPUP */
 #hackerPopup { position:fixed; top:20px; left:50%; transform:translateX(-50%); padding:14px 24px; border-radius:16px; background:rgba(0,255,0,0.9); color:#001; font-weight:bold; box-shadow:0 6px 15px rgba(0,0,0,0.5); opacity:0; pointer-events:none; transition:0.4s; z-index:9999; text-align:center; min-width:200px; }
+
+/* ANALYTICS TAB */
+#analyticsTab { display:none; text-align:center; margin-top:20px; }
+.chart { background:#001a00; border:1px solid #00ff0055; padding:16px; margin:10px auto; border-radius:10px; color:#00ff00; }
 </style>
 </head>
 <body>
@@ -68,10 +73,14 @@ button:hover { filter:brightness(1.2); transform:scale(1.05); }
 <div class="tabs">
   <div class="tab active" data-tab="all">All Messages</div>
   <div class="tab" data-tab="flagged">Flagged Messages</div>
+  <div class="tab" data-tab="analytics">Analytics</div>
 </div>
 
 <div class="search-bar">
-  <input type="text" id="searchInput" placeholder="Search messages by name or content">
+  <input type="text" id="searchInput" placeholder="Search messages by content">
+  <label>Name:</label><input type="text" id="filterName" placeholder="Filter by name">
+  <label>From:</label><input type="date" id="filterStart">
+  <label>To:</label><input type="date" id="filterEnd">
 </div>
 
 <div class="analytics">
@@ -80,13 +89,16 @@ button:hover { filter:brightness(1.2); transform:scale(1.05); }
 
 <div id="all" class="grid"></div>
 <div id="flagged" class="grid" style="display:none;"></div>
+<div id="analyticsTab">
+  <div class="chart" id="chartSummary">Loading analytics...</div>
+</div>
 
 <div class="pagination" id="pagination"></div>
 <div id="hackerPopup">POPUP</div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, deleteDoc, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, deleteDoc, updateDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBorukwZKOeJaxEYqY57zL1W-8zjevQlhg",
@@ -109,6 +121,11 @@ const searchInput = document.getElementById("searchInput");
 const totalCountEl = document.getElementById("totalCount");
 const flaggedCountEl = document.getElementById("flaggedCount");
 const paginationEl = document.getElementById("pagination");
+const filterName = document.getElementById("filterName");
+const filterStart = document.getElementById("filterStart");
+const filterEnd = document.getElementById("filterEnd");
+const analyticsTab = document.getElementById("analyticsTab");
+const chartSummary = document.getElementById("chartSummary");
 
 let allMessages = [];
 let flaggedMessages = [];
@@ -127,10 +144,10 @@ function showPopup(msg, color="rgba(0,255,0,0.9)", duration=2500){
 // PASSWORD CHECK (hash check simulation)
 function loginAdmin(){
   const pw = adminPass.value.trim();
-  const hashed = "rama338"; // Replace with secure auth in production
+  const hashed = "rama338"; 
   if(pw===hashed){
     passPopup.style.display="none";
-    showPopup("Access Granted");
+    showPopup("Access Granted","#00ff00");
     initAdminPanel();
   } else {
     showPopup("Access Denied","rgba(255,0,0,0.9)");
@@ -149,6 +166,7 @@ function initAdminPanel(){
     allMessages = snapshot.docs.map(d=>({id:d.id, ...d.data()}));
     totalCountEl.textContent = allMessages.length;
     renderGrid();
+    renderAnalytics();
   });
   
   const qFlagged = query(collection(db,"flaggedMessages"), orderBy("date","desc"));
@@ -156,16 +174,31 @@ function initAdminPanel(){
     flaggedMessages = snapshot.docs.map(d=>({id:d.id, ...d.data()}));
     flaggedCountEl.textContent = flaggedMessages.length;
     renderGrid();
+    renderAnalytics();
   });
 }
 
 // RENDER GRID
 function renderGrid(){
-  const grid = activeTab==="all"?allGrid:flaggedGrid;
+  const grid = activeTab==="all"?allGrid:activeTab==="flagged"?flaggedGrid:null;
+  if(!grid) return;
+
   const messages = activeTab==="all"?allMessages:flaggedMessages;
   grid.innerHTML="";
   const searchTerm = searchInput.value.toLowerCase();
-  const filtered = messages.filter(m=> m.name.toLowerCase().includes(searchTerm) || m.message.toLowerCase().includes(searchTerm));
+  const nameFilter = filterName.value.toLowerCase();
+  const startDate = filterStart.value? new Date(filterStart.value): null;
+  const endDate = filterEnd.value? new Date(filterEnd.value): null;
+
+  const filtered = messages.filter(m=>{
+    const messageMatch = m.message.toLowerCase().includes(searchTerm);
+    const nameMatch = m.name.toLowerCase().includes(nameFilter);
+    const date = m.date?.toDate ? m.date.toDate() : m.date;
+    const startMatch = startDate? date >= startDate : true;
+    const endMatch = endDate? date <= endDate : true;
+    return messageMatch && nameMatch && startMatch && endMatch;
+  });
+
   const paginated = filtered.slice((currentPage-1)*pageSize, currentPage*pageSize);
 
   if(paginated.length===0){ 
@@ -182,22 +215,40 @@ function renderGrid(){
       <div class="name">Name: ${m.name}</div>
       <div class="date">Date: ${m.date?.toDate? m.date.toDate().toLocaleString() : ""}</div>
       <div class="message">${m.message}</div>
+      <div class="meta">
+        IP: ${m.ip || "Unknown"} <br>
+        Device: ${m.userAgent || "Unknown"} <br>
+        Location: ${m.geo?.city || ""}, ${m.geo?.region || ""}, ${m.geo?.country || ""} <br>
+        Last Edited: ${m.lastEdited?.toDate ? m.lastEdited.toDate().toLocaleString() : "-"}
+      </div>
+      <button class="editBtn" style="background:#ff6600;color:#001;">Edit</button>
       <button class="approveBtn">Approve</button>
-      <button class="deleteBtn">Delete</button>
+      <button class="deleteBtn" style="background:#ff0000;color:#fff;">Delete</button>
     `;
-    // BUTTONS
     const approveBtn = card.querySelector(".approveBtn");
     const deleteBtn = card.querySelector(".deleteBtn");
+    const editBtn = card.querySelector(".editBtn");
+
     approveBtn.addEventListener("click", async ()=>{
       if(activeTab==="flagged"){
-        await addDoc(collection(db,"messages"),{name:m.name,message:m.message,date:m.date});
+        await addDoc(collection(db,"messages"),{name:m.name,message:m.message,date:m.date,ip:m.ip,userAgent:m.userAgent,geo:m.geo,lastEdited:m.lastEdited || m.date});
         await deleteDoc(doc(db,"flaggedMessages",m.id));
-        showPopup("Message Approved");
+        showPopup("Message Approved","#00ff00");
       }
     });
     deleteBtn.addEventListener("click", async ()=>{
       await deleteDoc(doc(db,activeTab==="all"?"messages":"flaggedMessages",m.id));
       showPopup("Message Deleted","rgba(255,0,0,0.9)");
+    });
+    editBtn.addEventListener("click", ()=>{
+      const newMsg = prompt("Edit message:", m.message);
+      if(newMsg!==null){
+        updateDoc(doc(db,activeTab==="all"?"messages":"flaggedMessages",m.id),{
+          message:newMsg,
+          lastEdited: serverTimestamp()
+        });
+        showPopup("Message Edited","#ff6600");
+      }
     });
 
     grid.appendChild(card);
@@ -206,10 +257,12 @@ function renderGrid(){
   renderPagination(filtered.length);
 }
 
-// SEARCH
-searchInput.addEventListener("input", ()=>{
-  currentPage=1;
-  renderGrid();
+// FILTERS & SEARCH
+[searchInput, filterName, filterStart, filterEnd].forEach(el=>{
+  el.addEventListener("input", ()=>{
+    currentPage=1;
+    renderGrid();
+  });
 });
 
 // TABS
@@ -220,6 +273,7 @@ document.querySelectorAll(".tab").forEach(tab=>{
     activeTab = tab.dataset.tab;
     allGrid.style.display=activeTab==="all"?"grid":"none";
     flaggedGrid.style.display=activeTab==="flagged"?"grid":"none";
+    analyticsTab.style.display=activeTab==="analytics"?"block":"none";
     currentPage=1;
     renderGrid();
   });
@@ -237,6 +291,40 @@ function renderPagination(total){
     paginationEl.appendChild(btn);
   }
 }
+
+// ANALYTICS
+function renderAnalytics(){
+  const total = allMessages.length;
+  const flagged = flaggedMessages.length;
+  const approved = total - flagged;
+  
+  let devices = {};
+  let countries = {};
+  let users = {};
+  allMessages.concat(flaggedMessages).forEach(m=>{
+    if(m.userAgent) devices[m.userAgent] = (devices[m.userAgent]||0)+1;
+    if(m.geo?.country) countries[m.geo.country] = (countries[m.geo.country]||0)+1;
+    if(m.name) users[m.name] = (users[m.name]||0)+1;
+  });
+  
+  let summary = `
+    Total Messages: ${total} <br>
+    Approved Messages: ${approved} <br>
+    Flagged Messages: ${flagged} <br>
+    <hr>
+    <b>Top Users:</b> ${Object.entries(users).sort((a,b)=>b[1]-a[1]).slice(0,5).map(u=>`${u[0]}(${u[1]})`).join(", ")} <br>
+    <b>Top Devices:</b> ${Object.entries(devices).sort((a,b)=>b[1]-a[1]).slice(0,5).map(u=>`${u[0]}(${u[1]})`).join(", ")} <br>
+    <b>Top Countries:</b> ${Object.entries(countries).sort((a,b)=>b[1]-a[1]).slice(0,5).map(u=>`${u[0]}(${u[1]})`).join(", ")}
+  `;
+  chartSummary.innerHTML = summary;
+}
+
+// OPTIONAL: Real-time notification when new flagged message arrives
+onSnapshot(query(collection(db,"flaggedMessages"), orderBy("date","desc")), snapshot=>{
+  if(snapshot.docChanges().some(change=>change.type==="added")){
+    showPopup("New Flagged Message!","#ff0000");
+  }
+});
 </script>
 </body>
 </html>
