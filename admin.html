@@ -239,7 +239,7 @@ enterBtn.addEventListener("click", async ()=>{
 
 adminPass.addEventListener("keydown", e=>{ if(e.key==="Enter"){ enterBtn.click(); } });
 
-// Fingerprint + Device capture
+
 const fpPromise = FingerprintJS.load();
 function captureFingerprint(){ fpPromise.then(fp=>{
   window.fingerprint=fp.get(); }); }
