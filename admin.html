@@ -40,7 +40,7 @@ button:hover { filter:brightness(1.2); transform:scale(1.05); }
 </head>
 <body>
 
-<!-- PASSWORD POPUP -->
+
 <div id="passPopup">
   <h1>ENTER ADMIN PASSWORD</h1>
   <input type="password" id="adminPass" placeholder="Password">
@@ -72,7 +72,7 @@ button:hover { filter:brightness(1.2); transform:scale(1.05); }
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, collection, query, orderBy, onSnapshot, addDoc, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// FIREBASE CONFIG
+
 const firebaseConfig = {
   apiKey: "AIzaSyBorukwZKOeJaxEYqY57zL1W-8zjevQlhg",
   authDomain: "messages-9e5da.firebaseapp.com",
@@ -84,7 +84,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// ELEMENTS
+
 const passPopup = document.getElementById("passPopup");
 const adminPass = document.getElementById("adminPass");
 const enterBtn = document.getElementById("enterBtn");
@@ -110,7 +110,7 @@ function showPopup(msg, color="rgba(0,255,0,0.9)", duration=2500){
   setTimeout(()=>{ hackerPopup.style.opacity="0"; hackerPopup.style.pointerEvents="none"; }, duration);
 }
 
-// PASSWORD SYSTEM
+
 const ADMIN_PASSWORD = "iAveVcNJAeWzK9mjUsyhkEaHTSg1";
 enterBtn.addEventListener("click", ()=>{
   const pass = adminPass.value.trim();
@@ -126,7 +126,7 @@ adminPass.addEventListener("keydown", e=>{
   if(e.key === "Enter"){ enterBtn.click(); }
 });
 
-// TABS
+
 document.querySelectorAll(".tab").forEach(tab=>{
   tab.addEventListener("click", ()=>{
     document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
@@ -136,7 +136,7 @@ document.querySelectorAll(".tab").forEach(tab=>{
   });
 });
 
-// FETCH MESSAGES
+
 function initializePanel(){
   const qAll = query(collection(db,"messages"), orderBy("date","desc"));
   onSnapshot(qAll, snapshot=>{
@@ -152,7 +152,7 @@ function initializePanel(){
   });
 }
 
-// RENDER
+
 function render(){
   const grid = activeTab==='all'? allGrid : flaggedGrid;
   const messages = activeTab==='all'? allMessages : flaggedMessages;
@@ -197,7 +197,6 @@ function render(){
     grid.appendChild(card);
   });
 
-  // PAGINATION
   paginationEl.innerHTML = "";
   for(let i=1;i<=totalPages;i++){
     const btn = document.createElement("div");
@@ -208,7 +207,7 @@ function render(){
   }
 }
 
-// SEARCH
+
 searchInput.addEventListener("input", render);
 
 </script>
