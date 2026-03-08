@@ -169,7 +169,7 @@ function confirmPopup(msg, color="rgba(255,165,0,0.9)", duration=5000){
 // LOGIN FUNCTION
 async function loginAdmin(){
   const password = adminPass.value;
-  const email = "newannimsitha3@gmail.com";
+  const email = "newannimsitha3@gmail.com"; // your Firebase admin email
   try{
     const userCredential = await signInWithEmailAndPassword(auth,email,password);
     const user = userCredential.user;
@@ -178,13 +178,16 @@ async function loginAdmin(){
       return;
     }
     passPopup.style.display="none";
+    showPopup("ACCESS GRANTED","rgba(0,255,0,0.9)");
     initializePanel();
   }catch(err){
-    showPopup("ACCESS DENIED","rgba(255,0,0,0.9)");
     console.error(err);
+    showPopup("ACCESS DENIED","rgba(255,0,0,0.9)");
   }
 }
+
 enterBtn.addEventListener("click", loginAdmin);
+adminPass.addEventListener("keypress", function(e){ if(e.key==="Enter") loginAdmin(); });
 
 // TAB SWITCHING
 document.querySelectorAll('.tab').forEach(tab=>{
@@ -309,7 +312,6 @@ async function initializePanel(){
     flaggedMessages=[]; snap.forEach(docSnap=>flaggedMessages.push({...docSnap.data(),id:docSnap.id})); renderMessages();
   });
 }
-
 </script>
 </body>
 </html>
